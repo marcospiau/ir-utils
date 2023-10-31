@@ -1,0 +1,10 @@
+datasets
+polars==0.19.2
+isort
+flake8
+yapf
+# git+https://github.com/huggingface/huggingface_hub#egg=huggingface_hub[cli]
+huggingface_hub[cli]@git+https://github.com/huggingface/huggingface_hub#egg=huggingface_hub
+omegaconf
+hf-transfer
+patito
