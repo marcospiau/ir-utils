@@ -14,16 +14,18 @@ customizing the tokenizer to the collection. This is probably not ideal for
 all datasets, but is enough to get an idea of document (or query) length.
 """
 import argparse
+import glob
 import itertools
 import os
 
 import more_itertools
 import numpy as np
 import pandas as pd
+import ray
 import tqdm
 from transformers import AutoTokenizer
-import ray
-import glob
+
+from ir_utils.polars_utils import pack_polars_dataframe
 
 pd.options.display.float_format = '{:.2f}'.format
 
@@ -69,7 +71,7 @@ parser.add_argument('--batch_size',
                     type=int,
                     default=4096,
                     help='How many lines to process at once')
-                    
+
 
 class TokenizerActor:
 
@@ -94,10 +96,11 @@ class TokenizerActor:
         return {'lengths': lengths}
 
 
-from ray.util.actor_pool import ActorPool
 import polars as pl
+from ray.util.actor_pool import ActorPool
 
 
+@pl.Config(set_ascii_tables=True, set_tbl_rows=1000)
 def main():
     args = parser.parse_args()
     # enforce tokenizers parallelism to 1
@@ -116,21 +119,24 @@ def main():
     ds = ray.data.from_arrow(df.to_arrow())
     ds = ds.repartition(n_partitions)
 
-    ds = ds.map_batches(TokenizerActor(
-        args.tokenizer_path,
-        use_fast=not args.nouse_fast_tokenizer,
-        add_special_tokens=args.add_special_tokens,
-        additional_tokens=args.additional_tokens),
-                        compute=ray.data.ActorPoolStrategy(size=args.num_actors),
-                        zero_copy_batch=True,
-                        batch_format='pyarrow')
+    ds = ds.map_batches(
+        TokenizerActor(args.tokenizer_path,
+                       use_fast=not args.nouse_fast_tokenizer,
+                       add_special_tokens=args.add_special_tokens,
+                       additional_tokens=args.additional_tokens),
+        compute=ray.data.ActorPoolStrategy(size=args.num_actors),
+        zero_copy_batch=True,
+        batch_format='pyarrow')
     df_token_lengths = pl.from_arrow(ray.get(ds.to_arrow_refs())).to_pandas()
     print(df_token_lengths.describe())
 
     describe = df_token_lengths.describe(
         percentiles=[.25, .5, .75, .9, .95, .99, .995, .999])
+    describe = describe.reset_index(names='statistic').rename(
+        columns={'lengths': 'value'})
     print('Describe token lengths:')
     print(describe)
+    describe = pl.from_pandas(describe)
 
     # # calculate the number of tokens that will be truncated
     truncated_counts = (df_token_lengths >= args.target_length).astype(int)
@@ -138,8 +144,17 @@ def main():
     # add percent
     truncated_counts['counts_percent'] = truncated_counts.counts.mul(100).div(
         truncated_counts.counts.sum())
+    truncated_counts = pl.from_pandas(
+        truncated_counts.reset_index(names='truncation'))
     print('Truncated counts:')
     print(truncated_counts)
+    if args.output_file is not None:
+        print(f'Saving to file {args.output_file}')
+        describe = pack_polars_dataframe(describe, 'describe')
+        truncated_counts = pack_polars_dataframe(truncated_counts, 'truncation')
+        df_write = pl.concat([describe, truncated_counts], how='horizontal')
+        df_write.write_json(args.output_file)
+
 
 if __name__ == '__main__':
     main()
