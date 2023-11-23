@@ -157,22 +157,22 @@ def chunk_document_into_sentences(
              chunk) for chunk_id, chunk in enumerate(sentence_chunks)]
 
 
-def chunk_corpus_with_ray(
-        corpus_items_dataframe: pl.DataFrame, parallelism: int,
-        **chunk_corpus_kwargs) -> Dict[str, List[Tuple[str, str]]]:
-    """Breaks down a corpus into smaller document segments using Ray."""
-    import ray
-    ds = ray.data.from_arrow(corpus_items_dataframe.to_arrow())
-    ds = ds.repartition(parallelism)
-    ds = ds.map_batches(fn=lambda df: pd.DataFrame(
-        chunk_corpus(corpus_items=df.itertuples(index=False),
-                     **chunk_corpus_kwargs).items(),
-        columns=['docid', 'chunks']),
-                        zero_copy_batch=True,
-                        batch_format='pandas')
-    ds = pl.from_arrow(ray.get(ds.to_arrow_refs()))
-    ray.shutdown()
-    return ds
+# def chunk_corpus_with_ray(
+#         corpus_items_dataframe: pl.DataFrame, parallelism: int,
+#         **chunk_corpus_kwargs) -> Dict[str, List[Tuple[str, str]]]:
+#     """Breaks down a corpus into smaller document segments using Ray."""
+#     import ray
+#     ds = ray.data.from_arrow(corpus_items_dataframe.to_arrow())
+#     ds = ds.repartition(parallelism)
+#     ds = ds.map_batches(fn=lambda df: pd.DataFrame(
+#         chunk_corpus(corpus_items=df.itertuples(index=False),
+#                      **chunk_corpus_kwargs).items(),
+#         columns=['docid', 'chunks']),
+#                         zero_copy_batch=True,
+#                         batch_format='pandas')
+#     ds = pl.from_arrow(ray.get(ds.to_arrow_refs()))
+#     ray.shutdown()
+#     return ds
 
 
 class CorpusChunker:
@@ -262,3 +262,5 @@ class CorpusChunker:
         if ray_shutdown:
             ray.shutdown()
         return df_chunks
+
+    
