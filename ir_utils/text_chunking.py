@@ -258,6 +258,7 @@ class CorpusChunker:
                             zero_copy_batch=True,
                             batch_format='pyarrow')
         df_chunks = pl.from_arrow(ray.get(ds.to_arrow_refs()))
+        SegmentWithDocPTModel.validate(df_chunks)
         if ray_shutdown:
             ray.shutdown()
         return df_chunks
