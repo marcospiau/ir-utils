@@ -1,6 +1,7 @@
 """
 
-TALVEZ ADEQUAR MELHOR PENSANDO NO T5. Ver: https://github.com/huggingface/transformers/pull/24565
+TALVEZ ADEQUAR MELHOR PENSANDO NO T5.
+Ver: https://github.com/huggingface/transformers/pull/24565
 
 This script counts lines on a text file. To keep things simple, each line
 will be considered a document. All other preprocessing should be done outside
@@ -14,15 +15,12 @@ customizing the tokenizer to the collection. This is probably not ideal for
 all datasets, but is enough to get an idea of document (or query) length.
 """
 import argparse
-import glob
-import itertools
 import os
 
-import more_itertools
 import numpy as np
 import pandas as pd
+import polars as pl
 import ray
-import tqdm
 from transformers import AutoTokenizer
 
 from ir_utils.polars_utils import pack_polars_dataframe
@@ -96,10 +94,6 @@ class TokenizerActor:
         return {'lengths': lengths}
 
 
-import polars as pl
-from ray.util.actor_pool import ActorPool
-
-
 @pl.Config(set_ascii_tables=True, set_tbl_rows=1000)
 def main():
     args = parser.parse_args()
@@ -151,7 +145,8 @@ def main():
     if args.output_file is not None:
         print(f'Saving to file {args.output_file}')
         describe = pack_polars_dataframe(describe, 'describe')
-        truncated_counts = pack_polars_dataframe(truncated_counts, 'truncation')
+        truncated_counts = pack_polars_dataframe(truncated_counts,
+                                                 'truncation')
         df_write = pl.concat([describe, truncated_counts], how='horizontal')
         df_write.write_json(args.output_file)
 
