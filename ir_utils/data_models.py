@@ -1,7 +1,14 @@
-import patito as pt
-from typing import Dict, List, Sequence, Tuple
-import polars as pl
+import json
+import os
 from abc import ABC
+from typing import Dict, Optional, Sequence, Tuple
+
+import patito as pt
+import polars as pl
+from tqdm import tqdm
+from pathlib import Path
+import math
+
 from ir_utils.data_loading import load_top_k_query_doc_pairs
 
 
@@ -64,9 +71,78 @@ class DocumentPTModel(BaseMappingModel):
     doc_id: str = pt.Field(unique=True)
     doc_text: str
 
+    @classmethod
+    def pyserini_jsonl_collection_to_dataframe(
+            cls, collection_path: str) -> pl.DataFrame:
+        """Load a JSONL with 'id' and 'contents' and return a Polars DataFrame.
+
+        This is the standard data format used by Anserini/Pyserini.
+
+        Args:
+            path (str): JSONL file or a directory containing JSONL files.
+
+        Returns:
+            pl.DataFrame: A Polars DataFrame containing the items.
+        """
+        collection_path = Path(collection_path)
+        if collection_path.is_file():
+            df = pl.scan_ndjson(collection_path)
+        else:
+            df = pl.concat(list(map(pl.scan_ndjson,
+                                    collection_path.iterdir())))
+
+        df = df.select('id', 'contents')
+        df = df.rename({'id': 'doc_id', 'contents': 'doc_text'})
+        df = df.collect()
+        cls.validate(df)
+        return df
+
+    @classmethod
+    def dataframe_to_pyserini_id_contents_jsonl(
+            cls,
+            df: pl.DataFrame,
+            output_dir: str,
+            n_shards: Optional[int] = None,
+            max_rows_per_shard: Optional[int] = None) -> None:
+        """Convert a Polars DataFrame to a JSONL with 'id' and 'contents'."""
+        # only one of n_shards and max_rows_per_shard can be specified
+        cls.validate(df)
+        # Ensure only one of n_shards or max_rows_per_shard is specified
+        if n_shards is not None and max_rows_per_shard is not None:
+            raise ValueError(
+                'Only one of n_shards and max_rows_per_shard can be specified')
+        df = (df.rename({
+            'doc_id': 'id',
+            'doc_text': 'contents'
+        }).select('id', 'contents'))
+
+        # Calculate max_rows_per_shard based on n_shards, if provided
+        if n_shards is not None:
+            max_rows_per_shard = math.ceil(len(df) / n_shards)
+        else:
+            # Default to the length of the DataFrame if neither is provided
+            max_rows_per_shard = max_rows_per_shard or len(df)
+
+        # Calculate the number of output files
+        n_output_files = math.ceil(len(df) / max_rows_per_shard)
+        max_rows_per_shard = max_rows_per_shard or len(df)
+        n_output_files = int(math.ceil(len(df) / max_rows_per_shard))
+
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        for n, chunk in tqdm(enumerate(df.iter_slices(max_rows_per_shard)),
+                             total=n_output_files,
+                             desc='Writing JSONL files'):
+            chunk.write_ndjson(output_dir /
+                               f'docs-{n:06d}-of-{n_output_files:06d}.jsonl')
+
 
 class SegmentWithDocPTModel(BaseMappingModel):
-    """Segment data model."""
+    """Segment data model.
+
+    Currently, this is only used to validate unique segment_id.
+    
+    """
     doc_id: str
     segment_id: str = pt.Field(unique=True)
     segment_text: str
