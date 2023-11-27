@@ -1,10 +1,9 @@
 import glob
 import json
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple
 
-import polars as plQueryPTModel
-from pyserini.index import IndexReader
-from pyserini.search.lucene import LuceneSearcher
+# from pyserini.index import IndexReader
+# from pyserini.search.lucene import LuceneSearcher
 
 
 def load_key_value_tsv(path: str):

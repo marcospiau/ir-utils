@@ -1,15 +1,21 @@
-import json
-import os
+import logging
+import math
 from abc import ABC
+from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
 
 import patito as pt
 import polars as pl
 from tqdm import tqdm
-from pathlib import Path
-import math
 
 from ir_utils.data_loading import load_top_k_query_doc_pairs
+
+# Set up basic configuration for the logging system
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s [%(pathname)s] %(message)s')
+
+# Create a logger instance with a specific name
+logger = logging.getLogger(__name__)
 
 
 class BaseMappingModel(pt.Model, ABC):
@@ -21,7 +27,8 @@ class BaseMappingModel(pt.Model, ABC):
         """Convert a sequence of (key, value) tuples to a Polars DataFrame.
 
         Args:
-            items (Sequence[Tuple[str, str]]): A sequence of (key, value) tuples.
+            items (Sequence[Tuple[str, str]]): A sequence of (key, value)
+                tuples.
 
         Returns:
             pl.DataFrame: A Polars DataFrame containing the items.
@@ -104,7 +111,22 @@ class DocumentPTModel(BaseMappingModel):
             output_dir: str,
             n_shards: Optional[int] = None,
             max_rows_per_shard: Optional[int] = None) -> None:
-        """Convert a Polars DataFrame to a JSONL with 'id' and 'contents'."""
+        """Write a Polars DataFrame to a JSONL file with 'id' and 'contents'.
+
+        This is the standard data format used by Anserini/Pyserini.
+
+        Args:
+            df (pl.DataFrame): A Polars DataFrame containing the items.
+            output_dir (str): The path to the output directory.
+            n_shards (int, optional): The number of output shards to write.
+                Defaults to None.
+            max_rows_per_shard (int, optional): The maximum number of rows per
+                shard. Defaults to None.
+
+        Raises:
+            ValueError: If both n_shards and max_rows_per_shard are specified.
+        """
+
         # only one of n_shards and max_rows_per_shard can be specified
         cls.validate(df)
         # Ensure only one of n_shards or max_rows_per_shard is specified
@@ -130,18 +152,32 @@ class DocumentPTModel(BaseMappingModel):
 
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
-        for n, chunk in tqdm(enumerate(df.iter_slices(max_rows_per_shard)),
-                             total=n_output_files,
-                             desc='Writing JSONL files'):
-            chunk.write_ndjson(output_dir /
-                               f'docs-{n:06d}-of-{n_output_files:06d}.jsonl')
+        total_rows = len(df)
+        written_rows = 0
+
+        def set_description(pbar, n, n_output_files, written_rows, total_rows):
+            pbar.set_description(
+                f'Writing JSONL files (Shard: {n+1}/{n_output_files},'
+                f'Rows: {written_rows}/{total_rows})')
+
+        with tqdm(enumerate(df.iter_slices(max_rows_per_shard)),
+                  total=n_output_files,
+                  desc='Writing JSONL files') as pbar:
+            set_description(pbar, 0, n_output_files, written_rows, total_rows)
+            for n, chunk in pbar:
+                chunk_size = len(chunk)
+                written_rows += chunk_size
+                chunk.write_ndjson(
+                    output_dir / f'docs-{n:06d}-of-{n_output_files:06d}.jsonl')
+                # Update progress bar description
+                set_description(pbar, n, n_output_files, written_rows,
+                                total_rows)
+        logger.info('Wrote %d rows to %d files', total_rows, n_output_files)
 
 
 class SegmentWithDocPTModel(BaseMappingModel):
-    """Segment data model.
-
-    Currently, this is only used to validate unique segment_id.
-    
+    """Segment data model. Currently, this is only used to
+        validate unique segment_id.
     """
     doc_id: str
     segment_id: str = pt.Field(unique=True)
@@ -160,8 +196,8 @@ class QueryDocumentPairPTModel(BaseMappingModel):
 
         Args:
             path (str): The path to the TREC run file.
-            top_k (int, optional): If specified, only the top k rankings will be
-                included.
+            top_k (int, optional): If specified, only the top k rankings will
+                be included.
 
         Returns:
             pl.DataFrame: A Polars DataFrame containing the run.

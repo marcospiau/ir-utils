@@ -10,6 +10,7 @@ setup(
     entry_points={
         'console_scripts': [
             'ir_utils-count_tokens = ir_utils.scripts.count_tokens:main',
+            'ir_utils-chunk_jsonl_collection = ir_utils.scripts.chunk_jsonl_collection:main',
         ]
     },
     install_requires=required
