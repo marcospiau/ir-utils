@@ -15,7 +15,7 @@ cd $BASEDIR
 
 echo 'Installling pyserini'
 rm -rf pyserini
-git clone https://github.com/castorini/pyserini.git && cd pyserini && pip install -e .
+git clone -b pyserini-0.22.1 https://github.com/castorini/pyserini.git && cd pyserini && pip install -e .
 pip install -q faiss-cpu torch
 cd $BASEDIR
 
