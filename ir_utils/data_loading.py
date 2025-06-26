@@ -16,17 +16,17 @@ def load_key_value_tsv(path: str):
         Dict[str, str]: A dictionary containing the key-value pairs.
     """
     data = {}
-    with open(path, 'r') as f:
+    with open(path, "r") as f:
         for n, line in enumerate(f, 1):
-            key, value = line.strip().split('\t')
+            key, value = line.strip().split("\t")
             data[key] = value
-    assert len(data) == n, f'Duplicate keys found in {path}'
+    assert len(data) == n, f"Duplicate keys found in {path}"
     return data
 
 
-def load_top_k_query_doc_pairs(path: str,
-                               top_k: Optional[int] = None
-                               ) -> List[Tuple[str, str]]:
+def load_top_k_query_doc_pairs(
+    path: str, top_k: Optional[int] = None
+) -> List[Tuple[str, str]]:
     """Load a run file from a specified path and return a list of (qid, docid)
     tuples.
 
@@ -37,7 +37,7 @@ def load_top_k_query_doc_pairs(path: str,
     Returns: List[Tuple[str, str]]: A list of (qid, docid) tuples.
     """
     run = []
-    with open(path, 'r') as f:
+    with open(path, "r") as f:
         for line in f:
             qid, _, docid, rank, _, _ = line.strip().split()
             rank = int(rank)
@@ -49,21 +49,20 @@ def load_top_k_query_doc_pairs(path: str,
 
 def check_keys_match(data: Dict[str, Any], expected_keys: Set[str]) -> None:
     """Checks if the data keys match the expected set of keys.
-    
+
     Args:
         data (Dict[str, Any]): The dictionary to check.
         expected_keys (Set[str]): The expected set of keys.
-    
+
     Raises:
         AssertionError: If the keys in the data do not match the expected keys.
     """
-    assert set(
-        data.keys()) == expected_keys, 'Data keys and expected keys mismatch'
+    assert set(data.keys()) == expected_keys, "Data keys and expected keys mismatch"
 
 
-def load_filtered_jsonl_docs(ids: Set[str],
-                             glob_pattern: str,
-                             check_ids: bool = True) -> Dict[str, str]:
+def load_filtered_jsonl_docs(
+    ids: Set[str], glob_pattern: str, check_ids: bool = True
+) -> Dict[str, str]:
     """Loads a corpus from a set of jsonl files and returns a dictionary.
 
     The dictionary contains the document id as the key and the document text as
@@ -91,20 +90,19 @@ def load_filtered_jsonl_docs(ids: Set[str],
     corpus = {}
     paths = glob.glob(glob_pattern)
     for path in paths:
-        with open(path, 'r') as file:
+        with open(path, "r") as file:
             for line in file:
                 doc = json.loads(line)
-                if doc['id'] in ids:
-                    corpus[doc['id']] = doc['contents']
+                if doc["id"] in ids:
+                    corpus[doc["id"]] = doc["contents"]
     if check_ids:
         check_keys_match(corpus, ids)
     return corpus
 
 
 def load_filtered_docs_from_anserini_index(
-        ids: Set[str],
-        index_dir: str,
-        check_ids: bool = True) -> Dict[str, str]:
+    ids: Set[str], index_dir: str, check_ids: bool = True
+) -> Dict[str, str]:
     """Loads a corpus from an Anserini index and returns a dictionary.
 
     Args:
@@ -131,20 +129,18 @@ def load_filtered_docs_from_anserini_index(
     corpus = {}
     for doc_id in ids:
         raw = index_reader.doc(doc_id).raw()
-        assert raw is not None, f'Document with id {doc_id} not found'
+        assert raw is not None, f"Document with id {doc_id} not found"
         loaded = json.loads(raw)
-        assert loaded['id'] == doc_id, f'id mismatch for document {doc_id}'
-        corpus[doc_id] = loaded['contents']
+        assert loaded["id"] == doc_id, f"id mismatch for document {doc_id}"
+        corpus[doc_id] = loaded["contents"]
     if check_ids:
         check_keys_match(corpus, ids)
     return corpus
 
 
 def load_batched_filtered_docs_from_anserini_index(
-        ids: Set[str],
-        index_dir: str,
-        threads: int = 16,
-        check_ids: bool = True) -> Dict[str, str]:
+    ids: Set[str], index_dir: str, threads: int = 16, check_ids: bool = True
+) -> Dict[str, str]:
     """Loads a corpus from an Anserini index in batches and returns a
     dictionary.
 
@@ -171,7 +167,7 @@ def load_batched_filtered_docs_from_anserini_index(
     """
     searcher = LuceneSearcher(index_dir)
     corpus = searcher.batch_doc(ids, threads=threads)
-    corpus = {k: json.loads(v.raw())['contents'] for k, v in corpus.items()}
+    corpus = {k: json.loads(v.raw())["contents"] for k, v in corpus.items()}
     if check_ids:
         check_keys_match(corpus, ids)
     return corpus

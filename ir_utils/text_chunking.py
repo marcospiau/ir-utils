@@ -10,13 +10,12 @@ from spacy.language import Language
 from tqdm import tqdm
 import pyarrow as pa
 
-DOCUMENT_SEGMENT_DELIMITER = '#'
+DOCUMENT_SEGMENT_DELIMITER = "#"
 
 
 def add_segment_to_doc_id(
-        doc_id: str,
-        segment_id: int,
-        segment_delimiter: str = DOCUMENT_SEGMENT_DELIMITER) -> str:
+    doc_id: str, segment_id: int, segment_delimiter: str = DOCUMENT_SEGMENT_DELIMITER
+) -> str:
     """Adds a delimiter to a document id.
 
     Args:
@@ -27,11 +26,11 @@ def add_segment_to_doc_id(
         str: The document id with the delimiter.
     """
     assert segment_delimiter not in doc_id
-    return f'{doc_id}{segment_delimiter}{segment_id}'
+    return f"{doc_id}{segment_delimiter}{segment_id}"
 
 
 def initialize_spacy_pipeline(language: str, max_length=None) -> Language:
-    """ Initialize a spaCy pipeline.
+    """Initialize a spaCy pipeline.
 
     Args:
         language (str): The language of the pipeline.
@@ -43,7 +42,7 @@ def initialize_spacy_pipeline(language: str, max_length=None) -> Language:
     """
 
     nlp = spacy.blank(language)
-    nlp.add_pipe('sentencizer')
+    nlp.add_pipe("sentencizer")
     nlp.max_length = max_length or sys.maxsize
     return nlp
 
@@ -79,7 +78,7 @@ def deserialize_spacy_pipeline(config: dict, bytes_data: bytes) -> Language:
     Example:
         >>> nlp = deserialize_spacy_pipeline(config, bytes_data)
     """
-    lang_cls = spacy.util.get_lang_class(config['nlp']['lang'])
+    lang_cls = spacy.util.get_lang_class(config["nlp"]["lang"])
     nlp = lang_cls.from_config(config)
     nlp.from_bytes(bytes_data)
     return nlp
@@ -100,9 +99,7 @@ def get_sentences_from_doc(doc_text: str, nlp: Language) -> List[str]:
     return sentences
 
 
-def chunk_sentences(sentences: List[str],
-                    stride=5,
-                    max_length=10) -> Iterator[str]:
+def chunk_sentences(sentences: List[str], stride=5, max_length=10) -> Iterator[str]:
     """Chunk sentences in windows.
 
     Args:
@@ -114,7 +111,7 @@ def chunk_sentences(sentences: List[str],
         Iterator[str]: iterator over the chunks
     """
     for i in range(0, len(sentences), stride):
-        segment = ' '.join(sentences[i:i + max_length])
+        segment = " ".join(sentences[i : i + max_length])
         yield segment
         if i + max_length >= len(sentences):
             break
@@ -127,7 +124,7 @@ def chunk_document_into_sentences(
     max_doc_char_length: Optional[int] = None,
     window_stride: int = 5,
     window_max_length: int = 10,
-    docid_segment_delimiter: str = DOCUMENT_SEGMENT_DELIMITER
+    docid_segment_delimiter: str = DOCUMENT_SEGMENT_DELIMITER,
 ) -> List[Tuple[str, str]]:
     """
     Breaks down a document into smaller segments.
@@ -148,13 +145,20 @@ def chunk_document_into_sentences(
     if max_doc_char_length is not None:
         doc_text = doc_text[:max_doc_char_length]
     sentences = get_sentences_from_doc(doc_text, nlp)
-    sentence_chunks = chunk_sentences(sentences,
-                                      stride=window_stride,
-                                      max_length=window_max_length)
-    return [(add_segment_to_doc_id(doc_id=doc_id,
-                                   segment_id=chunk_id,
-                                   segment_delimiter=docid_segment_delimiter),
-             chunk) for chunk_id, chunk in enumerate(sentence_chunks)]
+    sentence_chunks = chunk_sentences(
+        sentences, stride=window_stride, max_length=window_max_length
+    )
+    return [
+        (
+            add_segment_to_doc_id(
+                doc_id=doc_id,
+                segment_id=chunk_id,
+                segment_delimiter=docid_segment_delimiter,
+            ),
+            chunk,
+        )
+        for chunk_id, chunk in enumerate(sentence_chunks)
+    ]
 
 
 # def chunk_corpus_with_ray(
@@ -178,23 +182,25 @@ def chunk_document_into_sentences(
 class CorpusChunker:
     """Breaks down a corpus into smaller document segments.
 
-        language (str): The language of the documents in the corpus.
-        max_doc_char_length (Optional[int]): Max characters allowed in a
-            document. Defaults to sys.maxsize.
-        window_stride (int, default=5): Number of sentences to advance when
-            creating chunks.
-        window_max_length (int, default=10): Max sentences in each chunk.
-        show_progress (bool, default=False): Display a progress bar.
-        docid_segment_delimiter (str, default=DOCUMENT_SEGMENT_DELIMITER):
-            Delimiter to separate document ID from segment ID.
+    language (str): The language of the documents in the corpus.
+    max_doc_char_length (Optional[int]): Max characters allowed in a
+        document. Defaults to sys.maxsize.
+    window_stride (int, default=5): Number of sentences to advance when
+        creating chunks.
+    window_max_length (int, default=10): Max sentences in each chunk.
+    show_progress (bool, default=False): Display a progress bar.
+    docid_segment_delimiter (str, default=DOCUMENT_SEGMENT_DELIMITER):
+        Delimiter to separate document ID from segment ID.
     """
 
-    def __init__(self,
-                 language: str,
-                 max_doc_char_length: Optional[int] = None,
-                 window_stride: int = 5,
-                 window_max_length: int = 10,
-                 docid_segment_delimiter: str = DOCUMENT_SEGMENT_DELIMITER):
+    def __init__(
+        self,
+        language: str,
+        max_doc_char_length: Optional[int] = None,
+        window_stride: int = 5,
+        window_max_length: int = 10,
+        docid_segment_delimiter: str = DOCUMENT_SEGMENT_DELIMITER,
+    ):
         self.language = language
         self.max_doc_char_length = max_doc_char_length or sys.maxsize
         self.window_stride = window_stride
@@ -205,37 +211,38 @@ class CorpusChunker:
             max_doc_char_length=self.max_doc_char_length,
             window_stride=self.window_stride,
             window_max_length=self.window_max_length,
-            docid_segment_delimiter=self.docid_segment_delimiter)
+            docid_segment_delimiter=self.docid_segment_delimiter,
+        )
 
     @property
     def nlp(self) -> Language:
         # this is not an attribute to avoid serialization
-        return initialize_spacy_pipeline(self.language,
-                                         self.max_doc_char_length)
+        return initialize_spacy_pipeline(self.language, self.max_doc_char_length)
 
     def chunk_corpus_items(
-            self,
-            corpus_items,
-            show_progress: bool = True) -> Dict[str, List[Tuple[str, str]]]:
+        self, corpus_items, show_progress: bool = True
+    ) -> Dict[str, List[Tuple[str, str]]]:
         return {
-            doc_id:
-            self.chunk_document_into_sentences_partial(doc_id=doc_id,
-                                                       doc_text=doc_text,
-                                                       nlp=self.nlp)
-            for doc_id, doc_text in tqdm(corpus_items,
-                                         disable=not show_progress)
+            doc_id: self.chunk_document_into_sentences_partial(
+                doc_id=doc_id, doc_text=doc_text, nlp=self.nlp
+            )
+            for doc_id, doc_text in tqdm(corpus_items, disable=not show_progress)
         }
 
     def chunk_corpus_polars(self, df_corpus: pl.DataFrame) -> pl.DataFrame:
         nlp = self.nlp
-        chunk_expr = pl.struct('doc_id', 'doc_text').map_elements(
-            lambda x: self.chunk_document_into_sentences_partial(
-                **x, nlp=nlp)).alias('segments')
-        df_chunks = df_corpus.select('doc_id', chunk_expr).explode('segments')
+        chunk_expr = (
+            pl.struct("doc_id", "doc_text")
+            .map_elements(
+                lambda x: self.chunk_document_into_sentences_partial(**x, nlp=nlp)
+            )
+            .alias("segments")
+        )
+        df_chunks = df_corpus.select("doc_id", chunk_expr).explode("segments")
         df_chunks = df_chunks.select(
-            'doc_id',
-            pl.col('segments').list.to_struct(
-                fields=['segment_id', 'segment_text'])).unnest('segments')
+            "doc_id",
+            pl.col("segments").list.to_struct(fields=["segment_id", "segment_text"]),
+        ).unnest("segments")
         SegmentWithDocPTModel.validate(df_chunks)
         return df_chunks
 
@@ -243,24 +250,24 @@ class CorpusChunker:
         df = pl.from_arrow(pa_table)
         return self.chunk_corpus_polars(df).to_arrow()
 
-    def chunk_corpus_ray(self,
-                         df_corpus: pl.DataFrame,
-                         ray_parallelism: int = 1,
-                         ray_shutdown: bool = True) -> pl.DataFrame:
+    def chunk_corpus_ray(
+        self,
+        df_corpus: pl.DataFrame,
+        ray_parallelism: int = 1,
+        ray_shutdown: bool = True,
+    ) -> pl.DataFrame:
         import ray
-        ray.data.DataContext.get_current(
-        ).execution_options.verbose_progress = True
+
+        ray.data.DataContext.get_current().execution_options.verbose_progress = True
         ds = ray.data.from_arrow(df_corpus.to_arrow())
         ds = ds.repartition(ray_parallelism)
         # triggering the reparition computation
         _ = ds.count()
-        ds = ds.map_batches(self.chunk_corpus_arrow,
-                            zero_copy_batch=True,
-                            batch_format='pyarrow')
+        ds = ds.map_batches(
+            self.chunk_corpus_arrow, zero_copy_batch=True, batch_format="pyarrow"
+        )
         df_chunks = pl.from_arrow(ray.get(ds.to_arrow_refs()))
         SegmentWithDocPTModel.validate(df_chunks)
         if ray_shutdown:
             ray.shutdown()
         return df_chunks
-
-    

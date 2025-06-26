@@ -1,17 +1,17 @@
 from setuptools import setup, find_packages
 
-with open('requirements.txt') as f:
+with open("requirements.txt") as f:
     required = f.read().splitlines()
 
 setup(
-    name='ir_utils',
-    version='0.0',
+    name="ir_utils",
+    version="0.0",
     packages=find_packages(),
     entry_points={
-        'console_scripts': [
-            'ir_utils-count_tokens = ir_utils.scripts.count_tokens:main',
-            'ir_utils-chunk_jsonl_collection = ir_utils.scripts.chunk_jsonl_collection:main',
+        "console_scripts": [
+            "ir_utils-count_tokens = ir_utils.scripts.count_tokens:main",
+            "ir_utils-chunk_jsonl_collection = ir_utils.scripts.chunk_jsonl_collection:main",
         ]
     },
-    install_requires=required
+    install_requires=required,
 )

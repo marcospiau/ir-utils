@@ -11,8 +11,7 @@ from tqdm import tqdm
 from ir_utils.data_loading import load_top_k_query_doc_pairs
 
 # Set up basic configuration for the logging system
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s [%(pathname)s] %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(pathname)s] %(message)s")
 
 # Create a logger instance with a specific name
 logger = logging.getLogger(__name__)
@@ -22,8 +21,7 @@ class BaseMappingModel(pt.Model, ABC):
     """Abstract base class for models that map a unique string to a string."""
 
     @classmethod
-    def items_to_dataframe(cls, items: Sequence[Tuple[str,
-                                                      str]]) -> pl.DataFrame:
+    def items_to_dataframe(cls, items: Sequence[Tuple[str, str]]) -> pl.DataFrame:
         """Convert a sequence of (key, value) tuples to a Polars DataFrame.
 
         Args:
@@ -62,25 +60,28 @@ class BaseMappingModel(pt.Model, ABC):
         """
         # We manually load TSV files because Polars/Pandas sometimes behave
         # inconsistently when loading TSV with newlines in the text.
-        with open(path, 'r') as f:
-            items = (line.strip().split('\t') for line in f)
+        with open(path, "r") as f:
+            items = (line.strip().split("\t") for line in f)
             return cls.items_to_dataframe(items)
 
 
 class QueryPTModel(BaseMappingModel):
     """Query data model."""
+
     query_id: str = pt.Field(unique=True)
     query: str
 
 
 class DocumentPTModel(BaseMappingModel):
     """Document data model."""
+
     doc_id: str = pt.Field(unique=True)
     doc_text: str
 
     @classmethod
     def pyserini_jsonl_collection_to_dataframe(
-            cls, collection_path: str) -> pl.DataFrame:
+        cls, collection_path: str
+    ) -> pl.DataFrame:
         """Load a JSONL with 'id' and 'contents' and return a Polars DataFrame.
 
         This is the standard data format used by Anserini/Pyserini.
@@ -95,22 +96,22 @@ class DocumentPTModel(BaseMappingModel):
         if collection_path.is_file():
             df = pl.scan_ndjson(collection_path)
         else:
-            df = pl.concat(list(map(pl.scan_ndjson,
-                                    collection_path.iterdir())))
+            df = pl.concat(list(map(pl.scan_ndjson, collection_path.iterdir())))
 
-        df = df.select('id', 'contents')
-        df = df.rename({'id': 'doc_id', 'contents': 'doc_text'})
+        df = df.select("id", "contents")
+        df = df.rename({"id": "doc_id", "contents": "doc_text"})
         df = df.collect()
         cls.validate(df)
         return df
 
     @classmethod
     def dataframe_to_pyserini_id_contents_jsonl(
-            cls,
-            df: pl.DataFrame,
-            output_dir: str,
-            n_shards: Optional[int] = None,
-            max_rows_per_shard: Optional[int] = None) -> None:
+        cls,
+        df: pl.DataFrame,
+        output_dir: str,
+        n_shards: Optional[int] = None,
+        max_rows_per_shard: Optional[int] = None,
+    ) -> None:
         """Write a Polars DataFrame to a JSONL file with 'id' and 'contents'.
 
         This is the standard data format used by Anserini/Pyserini.
@@ -132,11 +133,11 @@ class DocumentPTModel(BaseMappingModel):
         # Ensure only one of n_shards or max_rows_per_shard is specified
         if n_shards is not None and max_rows_per_shard is not None:
             raise ValueError(
-                'Only one of n_shards and max_rows_per_shard can be specified')
-        df = (df.rename({
-            'doc_id': 'id',
-            'doc_text': 'contents'
-        }).select('id', 'contents'))
+                "Only one of n_shards and max_rows_per_shard can be specified"
+            )
+        df = df.rename({"doc_id": "id", "doc_text": "contents"}).select(
+            "id", "contents"
+        )
 
         # Calculate max_rows_per_shard based on n_shards, if provided
         if n_shards is not None:
@@ -157,28 +158,32 @@ class DocumentPTModel(BaseMappingModel):
 
         def set_description(pbar, n, n_output_files, written_rows, total_rows):
             pbar.set_description(
-                f'Writing JSONL files (Shard: {n+1}/{n_output_files},'
-                f'Rows: {written_rows}/{total_rows})')
+                f"Writing JSONL files (Shard: {n + 1}/{n_output_files},"
+                f"Rows: {written_rows}/{total_rows})"
+            )
 
-        with tqdm(enumerate(df.iter_slices(max_rows_per_shard)),
-                  total=n_output_files,
-                  desc='Writing JSONL files') as pbar:
+        with tqdm(
+            enumerate(df.iter_slices(max_rows_per_shard)),
+            total=n_output_files,
+            desc="Writing JSONL files",
+        ) as pbar:
             set_description(pbar, 0, n_output_files, written_rows, total_rows)
             for n, chunk in pbar:
                 chunk_size = len(chunk)
                 written_rows += chunk_size
                 chunk.write_ndjson(
-                    output_dir / f'docs-{n:06d}-of-{n_output_files:06d}.jsonl')
+                    output_dir / f"docs-{n:06d}-of-{n_output_files:06d}.jsonl"
+                )
                 # Update progress bar description
-                set_description(pbar, n, n_output_files, written_rows,
-                                total_rows)
-        logger.info('Wrote %d rows to %d files', total_rows, n_output_files)
+                set_description(pbar, n, n_output_files, written_rows, total_rows)
+        logger.info("Wrote %d rows to %d files", total_rows, n_output_files)
 
 
 class SegmentWithDocPTModel(BaseMappingModel):
     """Segment data model. Currently, this is only used to
-        validate unique segment_id.
+    validate unique segment_id.
     """
+
     doc_id: str
     segment_id: str = pt.Field(unique=True)
     segment_text: str
@@ -186,6 +191,7 @@ class SegmentWithDocPTModel(BaseMappingModel):
 
 class QueryDocumentPairPTModel(BaseMappingModel):
     """TREC run data model."""
+
     query_id: str
     doc_id: str
 
