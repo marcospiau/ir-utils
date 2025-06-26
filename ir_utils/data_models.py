@@ -10,10 +10,9 @@ from tqdm import tqdm
 
 from ir_utils.data_loading import load_top_k_query_doc_pairs
 
-# Set up basic configuration for the logging system
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(pathname)s] %(message)s")
 
-# Create a logger instance with a specific name
+
 logger = logging.getLogger(__name__)
 
 
@@ -98,9 +97,9 @@ class DocumentPTModel(BaseMappingModel):
         else:
             df = pl.concat(list(map(pl.scan_ndjson, collection_path.iterdir())))
 
-        df = df.select("id", "contents")
-        df = df.rename({"id": "doc_id", "contents": "doc_text"})
-        df = df.collect()
+        df = df.select(
+            pl.col("id").alias("doc_id"), pl.col("contents").alias("doc_text")
+        ).collect()
         cls.validate(df)
         return df
 
@@ -128,22 +127,19 @@ class DocumentPTModel(BaseMappingModel):
             ValueError: If both n_shards and max_rows_per_shard are specified.
         """
 
-        # only one of n_shards and max_rows_per_shard can be specified
         cls.validate(df)
         # Ensure only one of n_shards or max_rows_per_shard is specified
         if n_shards is not None and max_rows_per_shard is not None:
             raise ValueError(
                 "Only one of n_shards and max_rows_per_shard can be specified"
             )
-        df = df.rename({"doc_id": "id", "doc_text": "contents"}).select(
-            "id", "contents"
+        df = df.select(
+            pl.col("id").alias("doc_id"), pl.col("contents").alias("doc_text")
         )
 
-        # Calculate max_rows_per_shard based on n_shards, if provided
         if n_shards is not None:
             max_rows_per_shard = math.ceil(len(df) / n_shards)
         else:
-            # Default to the length of the DataFrame if neither is provided
             max_rows_per_shard = max_rows_per_shard or len(df)
 
         # Calculate the number of output files
@@ -174,7 +170,6 @@ class DocumentPTModel(BaseMappingModel):
                 chunk.write_ndjson(
                     output_dir / f"docs-{n:06d}-of-{n_output_files:06d}.jsonl"
                 )
-                # Update progress bar description
                 set_description(pbar, n, n_output_files, written_rows, total_rows)
         logger.info("Wrote %d rows to %d files", total_rows, n_output_files)
 

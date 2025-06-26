@@ -2,9 +2,6 @@ import glob
 import json
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-# from pyserini.index import IndexReader
-# from pyserini.search.lucene import LuceneSearcher
-
 
 def load_key_value_tsv(path: str):
     """Loads a TSV file containing key-value pairs and returns a dictionary.
@@ -125,6 +122,8 @@ def load_filtered_docs_from_anserini_index(
         >>> print(corpus['doc1'])
         Document text 1
     """
+    from pyserini.index import IndexReader
+
     index_reader = IndexReader(index_dir)
     corpus = {}
     for doc_id in ids:
@@ -165,6 +164,8 @@ def load_batched_filtered_docs_from_anserini_index(
         >>> print(corpus['doc1'])
         Document text 1
     """
+    from pyserini.search.lucene import LuceneSearcher
+
     searcher = LuceneSearcher(index_dir)
     corpus = searcher.batch_doc(ids, threads=threads)
     corpus = {k: json.loads(v.raw())["contents"] for k, v in corpus.items()}
